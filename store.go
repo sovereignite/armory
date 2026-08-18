@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"bytes"

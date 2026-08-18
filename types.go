@@ -4,7 +4,7 @@
 
 // Package keymanager manages non-exportable TPM signing keys by persistent
 // handle and exposes only purpose-specific signing workflows.
-package keymanager
+package armory
 
 import (
 	"context"
@@ -77,8 +77,8 @@ const (
 type RolePolicy struct {
 	Role             Role
 	Purpose          KeyPurpose
-	Algorithm        tpm.Algorithm
-	Handles          []tpm.Handle
+	Algorithm        anchor.Algorithm
+	Handles          []anchor.Handle
 	Lifetime         bool
 	RotationInterval time.Duration
 }
@@ -87,11 +87,11 @@ type RolePolicy struct {
 type KeyMetadata struct {
 	Role         Role          `json:"role"`
 	Purpose      KeyPurpose    `json:"purpose"`
-	Algorithm    tpm.Algorithm `json:"algorithm"`
-	Handle       tpm.Handle    `json:"persistent_handle"`
+	Algorithm    anchor.Algorithm `json:"algorithm"`
+	Handle       anchor.Handle    `json:"persistent_handle"`
 	PublicName   []byte        `json:"public_name"`
 	PublicKeyDER []byte        `json:"public_key_spki"`
-	Template     tpm.Template  `json:"template"`
+	Template     anchor.Template  `json:"template"`
 	CreatedAt    time.Time     `json:"created_at"`
 	Generation   uint64        `json:"generation"`
 }
@@ -136,7 +136,7 @@ func validatePolicies(policies []RolePolicy) (map[Role]RolePolicy, []Role, error
 		return nil, nil, errors.New("at least one key role policy is required")
 	}
 	byRole := make(map[Role]RolePolicy, len(policies))
-	handleRoles := make(map[tpm.Handle]Role)
+	handleRoles := make(map[anchor.Handle]Role)
 	order := make([]Role, 0, len(policies))
 	for _, input := range policies {
 		policy := clonePolicy(input)
@@ -146,13 +146,13 @@ func validatePolicies(policies []RolePolicy) (map[Role]RolePolicy, []Role, error
 		if _, exists := byRole[policy.Role]; exists {
 			return nil, nil, fmt.Errorf("duplicate key role %q", policy.Role)
 		}
-		if _, err := tpm.SigningTemplate(policy.Algorithm); err != nil {
+		if _, err := anchor.SigningTemplate(policy.Algorithm); err != nil {
 			return nil, nil, fmt.Errorf("role %q algorithm: %w", policy.Role, err)
 		}
 		if len(policy.Handles) == 0 {
 			return nil, nil, fmt.Errorf("role %q has no persistent handles", policy.Role)
 		}
-		localHandles := make(map[tpm.Handle]struct{}, len(policy.Handles))
+		localHandles := make(map[anchor.Handle]struct{}, len(policy.Handles))
 		for _, handle := range policy.Handles {
 			if !handle.IsPersistent() {
 				return nil, nil, fmt.Errorf(

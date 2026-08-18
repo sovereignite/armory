@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"testing"
@@ -34,7 +34,7 @@ func TestDefaultPoliciesPersistentHandles(t *testing.T) {
 
 func TestDefaultPoliciesUniqueHandles(t *testing.T) {
 	policies := DefaultPolicies()
-	seen := make(map[tpm.Handle]Role)
+	seen := make(map[anchor.Handle]Role)
 	for _, policy := range policies {
 		for _, handle := range policy.Handles {
 			if owner, exists := seen[handle]; exists {

@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"context"
@@ -28,11 +28,11 @@ func TestIssueCertificateUsesPurposeScopedTPMSigner(t *testing.T) {
 	testCases := []struct {
 		name      string
 		role      Role
-		algorithm tpm.Algorithm
+		algorithm anchor.Algorithm
 	}{
-		{name: "RSA-4096", role: "rsa-cert-ca", algorithm: tpm.AlgorithmRSA4096},
-		{name: "ECDSA-P256", role: "ecdsa-cert-ca", algorithm: tpm.AlgorithmECDSAP256},
-		{name: "Ed25519", role: "ed25519-cert-ca", algorithm: tpm.AlgorithmEd25519},
+		{name: "RSA-4096", role: "rsa-cert-ca", algorithm: anchor.AlgorithmRSA4096},
+		{name: "ECDSA-P256", role: "ecdsa-cert-ca", algorithm: anchor.AlgorithmECDSAP256},
+		{name: "Ed25519", role: "ed25519-cert-ca", algorithm: anchor.AlgorithmEd25519},
 	}
 
 	for index, testCase := range testCases {
@@ -41,7 +41,7 @@ func TestIssueCertificateUsesPurposeScopedTPMSigner(t *testing.T) {
 			store := newMemoryStore()
 			now := time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
 			clock := &fakeClock{now: now}
-			handle := tpm.PersistentHandleFirst + tpm.Handle(200+index*2)
+			handle := anchor.PersistentHandleFirst + anchor.Handle(200+index*2)
 			policy := caPolicy(
 				testCase.role,
 				testCase.algorithm,
@@ -125,7 +125,7 @@ func TestIssueCertificateUsesPurposeScopedTPMSigner(t *testing.T) {
 				)
 			}
 			signRequest := backend.signRequests[0]
-			if signRequest.Purpose != tpm.SignPurposeCertificate ||
+			if signRequest.Purpose != anchor.SignPurposeCertificate ||
 				signRequest.Object.Handle != metadata.Handle ||
 				signRequest.Object.Template != metadata.Template {
 				t.Fatalf("TPM sign request escaped certificate scope: %#v", signRequest)
@@ -139,13 +139,13 @@ func TestIssueCertificateWaitsForInFlightPersistentCreation(t *testing.T) {
 	store := newMemoryStore()
 	now := time.Now().UTC()
 	role := Role("transaction-cert-ca")
-	handle := tpm.PersistentHandleFirst + 210
+	handle := anchor.PersistentHandleFirst + 210
 	manager, err := NewManager(
 		backend,
 		store,
 		[]RolePolicy{caPolicy(
 			role,
-			tpm.AlgorithmECDSAP256,
+			anchor.AlgorithmECDSAP256,
 			handle,
 			handle+1,
 		)},
@@ -238,9 +238,9 @@ func TestIssueCertificateFailsClosedWithoutPolicy(t *testing.T) {
 	now := time.Now().UTC()
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+220,
-		tpm.PersistentHandleFirst+221,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+220,
+		anchor.PersistentHandleFirst+221,
 	)
 	manager, err := NewManager(
 		backend,
@@ -277,9 +277,9 @@ func TestIssueCertificatePolicyDenialDoesNotReachTPM(t *testing.T) {
 	now := time.Now().UTC()
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+230,
-		tpm.PersistentHandleFirst+231,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+230,
+		anchor.PersistentHandleFirst+231,
 	)
 	manager, err := NewManager(
 		backend,
@@ -323,9 +323,9 @@ func TestIssueCertificatePolicyCanReenterManager(t *testing.T) {
 	now := time.Now().UTC()
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+235,
-		tpm.PersistentHandleFirst+236,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+235,
+		anchor.PersistentHandleFirst+236,
 	)
 	var manager *Manager
 	certificatePolicy := CertificatePolicyFunc(func(
@@ -380,9 +380,9 @@ func TestIssueCertificateRechecksHandleImmediatelyBeforeSigning(t *testing.T) {
 	now := time.Now().UTC()
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+240,
-		tpm.PersistentHandleFirst+241,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+240,
+		anchor.PersistentHandleFirst+241,
 	)
 	manager, err := NewManager(
 		backend,
@@ -511,8 +511,8 @@ func TestLifetimeIdentityCannotIssueCertificate(t *testing.T) {
 	backend := newFakeBackend()
 	now := time.Now().UTC()
 	policy := identityPolicy(
-		tpm.AlgorithmEd25519,
-		tpm.PersistentHandleFirst+250,
+		anchor.AlgorithmEd25519,
+		anchor.PersistentHandleFirst+250,
 	)
 	manager, err := NewManager(
 		backend,

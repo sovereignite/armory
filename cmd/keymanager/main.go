@@ -25,7 +25,7 @@ const (
 	defaultMetadataPath = "/var/lib/sovereignite/keymanager/metadata.json"
 )
 
-var openTPM = tpm.OpenGoTPM
+var openTPM = anchor.OpenGoTPM
 
 func main() {
 	if err := run(os.Args[1:], os.Stderr); err != nil {
@@ -54,7 +54,7 @@ func run(arguments []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	backend, err := openTPM(tpm.GoTPMConfig{
+	backend, err := openTPM(anchor.GoTPMConfig{
 		DevicePath: strings.TrimSpace(*devicePath),
 	})
 	if err != nil {
@@ -62,15 +62,15 @@ func run(arguments []string, stderr io.Writer) error {
 	}
 	defer func() { _ = backend.Close() }()
 
-	store, err := keymanager.NewFileStore(strings.TrimSpace(*metadataPath))
+	store, err := armory.NewFileStore(strings.TrimSpace(*metadataPath))
 	if err != nil {
 		return fmt.Errorf("%s: create metadata store: %w", mode, err)
 	}
-	policies := keymanager.DefaultPolicies()
+	policies := armory.DefaultPolicies()
 	// A nil CertificatePolicy fails closed: all IssueCertificate calls return
 	// ErrCertificatePolicyUnavailable. Replace with an authorized profile
 	// policy before production deployment.
-	manager, err := keymanager.NewManager(
+	manager, err := armory.NewManager(
 		backend,
 		store,
 		policies,

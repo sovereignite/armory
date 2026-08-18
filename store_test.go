@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"bytes"
@@ -478,15 +478,15 @@ func TestFileStoreCrashPartialRecoveryCleansPendingWithoutTPMHandle(t *testing.T
 		t.Fatal(err)
 	}
 
-	handleA := tpm.Handle(0x81010001)
-	handleB := tpm.Handle(0x81010002)
+	handleA := anchor.Handle(0x81010001)
+	handleB := anchor.Handle(0x81010002)
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handleA,
 		handleB,
 	)
-	template, err := tpm.SigningTemplate(tpm.AlgorithmECDSAP256)
+	template, err := anchor.SigningTemplate(anchor.AlgorithmECDSAP256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +496,7 @@ func TestFileStoreCrashPartialRecoveryCleansPendingWithoutTPMHandle(t *testing.T
 	snapshot.Pending[RoleDeviceRootCA] = KeyMetadata{
 		Role:         RoleDeviceRootCA,
 		Purpose:      PurposeCertificateAuthority,
-		Algorithm:    tpm.AlgorithmECDSAP256,
+		Algorithm:    anchor.AlgorithmECDSAP256,
 		Handle:       handleA,
 		PublicName:   []byte("orphaned-name"),
 		PublicKeyDER: []byte("orphaned-key"),
@@ -541,20 +541,20 @@ func TestFileStoreCrashPartialRecoveryAdoptsExistingPending(t *testing.T) {
 	}
 
 	backend := newFakeBackend()
-	handle := tpm.Handle(0x81010002)
-	otherHandle := tpm.Handle(0x81010003)
+	handle := anchor.Handle(0x81010002)
+	otherHandle := anchor.Handle(0x81010003)
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		otherHandle,
 	)
-	template, err := tpm.SigningTemplate(tpm.AlgorithmECDSAP256)
+	template, err := anchor.SigningTemplate(anchor.AlgorithmECDSAP256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	signer, err := generateFakeSigner(tpm.AlgorithmECDSAP256)
+	signer, err := generateFakeSigner(anchor.AlgorithmECDSAP256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,7 +562,7 @@ func TestFileStoreCrashPartialRecoveryAdoptsExistingPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	publicDER, err := tpm.CanonicalPublicKey(public)
+	publicDER, err := anchor.CanonicalPublicKey(public)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +572,7 @@ func TestFileStoreCrashPartialRecoveryAdoptsExistingPending(t *testing.T) {
 	snapshot.Pending[RoleDeviceRootCA] = KeyMetadata{
 		Role:         RoleDeviceRootCA,
 		Purpose:      PurposeCertificateAuthority,
-		Algorithm:    tpm.AlgorithmECDSAP256,
+		Algorithm:    anchor.AlgorithmECDSAP256,
 		Handle:       handle,
 		PublicName:   public.Name,
 		PublicKeyDER: publicDER,

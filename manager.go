@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"bytes"
@@ -33,7 +33,7 @@ func (wallClock) Now() time.Time {
 type Manager struct {
 	mu sync.Mutex
 
-	backend           tpm.Backend
+	backend           anchor.Backend
 	store             Store
 	transactionStore  Store
 	clock             Clock
@@ -48,7 +48,7 @@ type Manager struct {
 // NewManager validates that every configured persistent handle belongs to
 // exactly one role.
 func NewManager(
-	backend tpm.Backend,
+	backend anchor.Backend,
 	store Store,
 	policies []RolePolicy,
 	certificatePolicy CertificatePolicy,
@@ -341,7 +341,7 @@ func (m *Manager) openLocked(ctx context.Context) error {
 		}
 		for _, metadata := range state.Retiring {
 			public, readErr := m.backend.ReadPublic(ctx, metadata.Handle)
-			if errors.Is(readErr, tpm.ErrHandleNotFound) {
+			if errors.Is(readErr, anchor.ErrHandleNotFound) {
 				continue
 			}
 			if readErr != nil {
@@ -389,7 +389,7 @@ func (m *Manager) validateSnapshotLocked(snapshot Snapshot) error {
 	if err := validateSnapshotEnvelope(snapshot); err != nil {
 		return err
 	}
-	seenHandles := make(map[tpm.Handle]Role)
+	seenHandles := make(map[anchor.Handle]Role)
 	for role, state := range snapshot.Roles {
 		policy, exists := m.policies[role]
 		if !exists {
@@ -521,7 +521,7 @@ func validateMetadataForPolicy(
 			mapRole,
 		)
 	}
-	expectedTemplate, err := tpm.SigningTemplate(policy.Algorithm)
+	expectedTemplate, err := anchor.SigningTemplate(policy.Algorithm)
 	if err != nil {
 		return fmt.Errorf("%w: role %q template: %v", ErrMetadataMismatch, mapRole, err)
 	}
@@ -560,7 +560,7 @@ func (m *Manager) verifyMetadataValue(ctx context.Context, metadata KeyMetadata)
 	return verifyPublicMetadata(metadata, public)
 }
 
-func verifyPublicMetadata(metadata KeyMetadata, public tpm.Public) error {
+func verifyPublicMetadata(metadata KeyMetadata, public anchor.Public) error {
 	if public.Handle != metadata.Handle {
 		return fmt.Errorf(
 			"%w: role %q returned handle %#x, expected %#x",
@@ -584,7 +584,7 @@ func verifyPublicMetadata(metadata KeyMetadata, public tpm.Public) error {
 			metadata.Role,
 		)
 	}
-	publicDER, err := tpm.CanonicalPublicKey(public)
+	publicDER, err := anchor.CanonicalPublicKey(public)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: role %q invalid TPM public key: %v",
@@ -606,18 +606,18 @@ func verifyPublicMetadata(metadata KeyMetadata, public tpm.Public) error {
 func (m *Manager) initialHandleLocked(
 	ctx context.Context,
 	policy RolePolicy,
-) (tpm.Handle, error) {
+) (anchor.Handle, error) {
 	handle := policy.Handles[0]
 	_, err := m.backend.ReadPublic(ctx, handle)
 	if err == nil {
 		return 0, fmt.Errorf(
 			"%w: initial handle %#x for role %q",
-			tpm.ErrHandleOccupied,
+			anchor.ErrHandleOccupied,
 			uint32(handle),
 			policy.Role,
 		)
 	}
-	if !errors.Is(err, tpm.ErrHandleNotFound) {
+	if !errors.Is(err, anchor.ErrHandleNotFound) {
 		return 0, fmt.Errorf(
 			"inspect initial handle %#x for role %q: %w",
 			uint32(handle),
@@ -632,8 +632,8 @@ func (m *Manager) rotationHandleLocked(
 	ctx context.Context,
 	policy RolePolicy,
 	state RoleState,
-) (tpm.Handle, error) {
-	recorded := make(map[tpm.Handle]struct{}, len(state.Retiring)+1)
+) (anchor.Handle, error) {
+	recorded := make(map[anchor.Handle]struct{}, len(state.Retiring)+1)
 	recorded[state.Active.Handle] = struct{}{}
 	for _, metadata := range state.Retiring {
 		recorded[metadata.Handle] = struct{}{}
@@ -645,7 +645,7 @@ func (m *Manager) rotationHandleLocked(
 		}
 		_, err := m.backend.ReadPublic(ctx, handle)
 		switch {
-		case errors.Is(err, tpm.ErrHandleNotFound):
+		case errors.Is(err, anchor.ErrHandleNotFound):
 			return handle, nil
 		case err == nil:
 			occupied = true
@@ -661,7 +661,7 @@ func (m *Manager) rotationHandleLocked(
 	if occupied {
 		return 0, errors.Join(
 			fmt.Errorf("%w: %q", ErrNoHandleAvailable, policy.Role),
-			tpm.ErrHandleOccupied,
+			anchor.ErrHandleOccupied,
 		)
 	}
 	return 0, fmt.Errorf("%w: %q", ErrNoHandleAvailable, policy.Role)
@@ -670,7 +670,7 @@ func (m *Manager) rotationHandleLocked(
 func (m *Manager) createMetadataLocked(
 	ctx context.Context,
 	policy RolePolicy,
-	handle tpm.Handle,
+	handle anchor.Handle,
 	generation uint64,
 ) (KeyMetadata, error) {
 	if err := ctx.Err(); err != nil {
@@ -683,7 +683,7 @@ func (m *Manager) createMetadataLocked(
 			err,
 		)
 	}
-	template, err := tpm.SigningTemplate(policy.Algorithm)
+	template, err := anchor.SigningTemplate(policy.Algorithm)
 	if err != nil {
 		return KeyMetadata{}, err
 	}
@@ -697,7 +697,7 @@ func (m *Manager) createMetadataLocked(
 		ctx,
 		handle,
 		template,
-		func(candidate tpm.Public) error {
+		func(candidate anchor.Public) error {
 			if prepared {
 				return errors.New("TPM backend invoked persistent preparation more than once")
 			}
@@ -708,7 +708,7 @@ func (m *Manager) createMetadataLocked(
 					policy.Role,
 				)
 			}
-			publicDER, publicErr := tpm.CanonicalPublicKey(candidate)
+			publicDER, publicErr := anchor.CanonicalPublicKey(candidate)
 			if publicErr != nil {
 				return fmt.Errorf(
 					"validate prepared TPM public key for role %q: %w",
@@ -787,9 +787,9 @@ func (m *Manager) createMetadataLocked(
 
 func (m *Manager) evictCreatedPublicLocked(
 	ctx context.Context,
-	expectedHandle tpm.Handle,
-	expectedTemplate tpm.Template,
-	public tpm.Public,
+	expectedHandle anchor.Handle,
+	expectedTemplate anchor.Template,
+	public anchor.Public,
 ) error {
 	if public.Handle != expectedHandle ||
 		public.Template != expectedTemplate ||
@@ -801,11 +801,11 @@ func (m *Manager) evictCreatedPublicLocked(
 		10*time.Second,
 	)
 	defer cancel()
-	if err := m.backend.EvictPersistent(cleanupCtx, tpm.ObjectReference{
+	if err := m.backend.EvictPersistent(cleanupCtx, anchor.ObjectReference{
 		Handle:   public.Handle,
 		Name:     slices.Clone(public.Name),
 		Template: public.Template,
-	}); err != nil && !errors.Is(err, tpm.ErrHandleNotFound) {
+	}); err != nil && !errors.Is(err, anchor.ErrHandleNotFound) {
 		return fmt.Errorf(
 			"evict invalid created handle %#x: %w",
 			uint32(public.Handle),
@@ -833,7 +833,7 @@ func (m *Manager) reconcilePendingLocked(ctx context.Context) error {
 			return err
 		}
 		public, err := m.backend.ReadPublic(ctx, metadata.Handle)
-		if errors.Is(err, tpm.ErrHandleNotFound) {
+		if errors.Is(err, anchor.ErrHandleNotFound) {
 			delete(next.Pending, role)
 			changed = true
 			continue
@@ -899,7 +899,7 @@ func (m *Manager) reconcileRetiringLocked(ctx context.Context) error {
 				return err
 			}
 			public, err := m.backend.ReadPublic(ctx, metadata.Handle)
-			if errors.Is(err, tpm.ErrHandleNotFound) {
+			if errors.Is(err, anchor.ErrHandleNotFound) {
 				changed = true
 				continue
 			}
@@ -1024,8 +1024,8 @@ func incrementRevision(snapshot *Snapshot) error {
 	return nil
 }
 
-func objectReference(metadata KeyMetadata) tpm.ObjectReference {
-	return tpm.ObjectReference{
+func objectReference(metadata KeyMetadata) anchor.ObjectReference {
+	return anchor.ObjectReference{
 		Handle:   metadata.Handle,
 		Name:     slices.Clone(metadata.PublicName),
 		Template: metadata.Template,

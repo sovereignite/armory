@@ -39,8 +39,8 @@ func TestParseModePreservesSystemdCLIContract(t *testing.T) {
 
 func TestRunFailsClosedWhenHardwareAdapterIsUnavailable(t *testing.T) {
 	original := openTPM
-	openTPM = func(tpm.GoTPMConfig) (tpm.Backend, error) {
-		return nil, tpm.ErrAdapterUnavailable
+	openTPM = func(anchor.GoTPMConfig) (anchor.Backend, error) {
+		return nil, anchor.ErrAdapterUnavailable
 	}
 	t.Cleanup(func() {
 		openTPM = original
@@ -48,7 +48,7 @@ func TestRunFailsClosedWhenHardwareAdapterIsUnavailable(t *testing.T) {
 	for _, arguments := range [][]string{nil, {"initialize"}} {
 		var stderr bytes.Buffer
 		err := run(arguments, &stderr)
-		if !errors.Is(err, tpm.ErrAdapterUnavailable) {
+		if !errors.Is(err, anchor.ErrAdapterUnavailable) {
 			t.Fatalf("run(%v) error = %v, want adapter unavailable", arguments, err)
 		}
 	}
@@ -60,7 +60,7 @@ func TestRunRejectsUnknownCommandBeforeOpeningTPM(t *testing.T) {
 	if err == nil {
 		t.Fatal("run accepted an export command")
 	}
-	if errors.Is(err, tpm.ErrAdapterUnavailable) {
+	if errors.Is(err, anchor.ErrAdapterUnavailable) {
 		t.Fatal("run opened TPM before rejecting unknown command")
 	}
 }

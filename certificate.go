@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"bytes"
@@ -252,7 +252,7 @@ func (m *Manager) prepareCertificateLocked(
 
 type certificateSigner struct {
 	ctx       context.Context
-	backend   tpm.Backend
+	backend   anchor.Backend
 	metadata  KeyMetadata
 	publicKey crypto.PublicKey
 	used      bool
@@ -289,25 +289,25 @@ func (s *certificateSigner) Sign(
 		return nil, err
 	}
 
-	request := tpm.SignRequest{
+	request := anchor.SignRequest{
 		Object:  objectReference(s.metadata),
-		Purpose: tpm.SignPurposeCertificate,
+		Purpose: anchor.SignPurposeCertificate,
 		Scheme:  s.metadata.Template.SigningScheme,
 		Payload: slices.Clone(payload),
 	}
 	switch s.metadata.Algorithm {
-	case tpm.AlgorithmRSA4096, tpm.AlgorithmECDSAP256:
+	case anchor.AlgorithmRSA4096, anchor.AlgorithmECDSAP256:
 		if options.HashFunc() != crypto.SHA256 ||
 			len(payload) != crypto.SHA256.Size() {
 			return nil, errors.New("certificate signer requires an exact SHA-256 digest")
 		}
 		request.Hash = crypto.SHA256
-	case tpm.AlgorithmEd25519:
+	case anchor.AlgorithmEd25519:
 		if options.HashFunc() != crypto.Hash(0) {
 			return nil, errors.New("Ed25519 certificate signer requires the unhashed TBS certificate")
 		}
 	default:
-		return nil, &tpm.UnsupportedCapabilityError{
+		return nil, &anchor.UnsupportedCapabilityError{
 			Algorithm: s.metadata.Algorithm,
 			Reason:    "certificate signing algorithm is not allowlisted",
 		}

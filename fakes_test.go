@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"bytes"
@@ -29,20 +29,20 @@ import (
 )
 
 type fakeObject struct {
-	public tpm.Public
+	public anchor.Public
 	signer crypto.Signer
 }
 
 type fakeBackend struct {
 	mu sync.Mutex
 
-	supported map[tpm.Algorithm]bool
-	objects   map[tpm.Handle]fakeObject
+	supported map[anchor.Algorithm]bool
+	objects   map[anchor.Handle]fakeObject
 
 	createCalls  int
 	signCalls    int
 	evictCalls   int
-	signRequests []tpm.SignRequest
+	signRequests []anchor.SignRequest
 
 	evictFailures        int
 	createResponseLosses int
@@ -51,18 +51,18 @@ type fakeBackend struct {
 
 func newFakeBackend() *fakeBackend {
 	return &fakeBackend{
-		supported: map[tpm.Algorithm]bool{
-			tpm.AlgorithmRSA4096:   true,
-			tpm.AlgorithmECDSAP256: true,
-			tpm.AlgorithmEd25519:   true,
+		supported: map[anchor.Algorithm]bool{
+			anchor.AlgorithmRSA4096:   true,
+			anchor.AlgorithmECDSAP256: true,
+			anchor.AlgorithmEd25519:   true,
 		},
-		objects: make(map[tpm.Handle]fakeObject),
+		objects: make(map[anchor.Handle]fakeObject),
 	}
 }
 
 func (f *fakeBackend) Supports(
 	ctx context.Context,
-	algorithm tpm.Algorithm,
+	algorithm anchor.Algorithm,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -70,7 +70,7 @@ func (f *fakeBackend) Supports(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.supported[algorithm] {
-		return &tpm.UnsupportedCapabilityError{
+		return &anchor.UnsupportedCapabilityError{
 			Algorithm: algorithm,
 			Reason:    "fake TPM capability disabled",
 		}
@@ -80,46 +80,46 @@ func (f *fakeBackend) Supports(
 
 func (f *fakeBackend) CreatePersistent(
 	ctx context.Context,
-	handle tpm.Handle,
-	template tpm.Template,
-	prepare tpm.PreparePersistent,
-) (tpm.Public, error) {
+	handle anchor.Handle,
+	template anchor.Template,
+	prepare anchor.PreparePersistent,
+) (anchor.Public, error) {
 	if err := ctx.Err(); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	if !handle.IsPersistent() {
-		return tpm.Public{}, errors.New("fake TPM received a non-persistent handle")
+		return anchor.Public{}, errors.New("fake TPM received a non-persistent handle")
 	}
 	if err := f.Supports(ctx, template.Algorithm); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
-	expected, err := tpm.SigningTemplate(template.Algorithm)
+	expected, err := anchor.SigningTemplate(template.Algorithm)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	if template != expected {
-		return tpm.Public{}, errors.New("fake TPM received an unexpected template")
+		return anchor.Public{}, errors.New("fake TPM received an unexpected template")
 	}
 	signer, err := generateFakeSigner(template.Algorithm)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	public, err := fakePublic(handle, template, signer.Public())
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 
 	f.mu.Lock()
 	if _, exists := f.objects[handle]; exists {
 		f.mu.Unlock()
-		return tpm.Public{}, tpm.ErrHandleOccupied
+		return anchor.Public{}, anchor.ErrHandleOccupied
 	}
 	f.mu.Unlock()
 	if prepare == nil {
-		return tpm.Public{}, errors.New("fake TPM requires persistent preparation")
+		return anchor.Public{}, errors.New("fake TPM requires persistent preparation")
 	}
 	if err := prepare(public); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	if f.afterPrepare != nil {
 		f.afterPrepare()
@@ -128,36 +128,36 @@ func (f *fakeBackend) CreatePersistent(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, exists := f.objects[handle]; exists {
-		return tpm.Public{}, tpm.ErrHandleOccupied
+		return anchor.Public{}, anchor.ErrHandleOccupied
 	}
 	f.createCalls++
 	f.objects[handle] = fakeObject{public: public, signer: signer}
 	if f.createResponseLosses > 0 {
 		f.createResponseLosses--
-		return tpm.Public{}, errors.New("injected response loss after persistence")
+		return anchor.Public{}, errors.New("injected response loss after persistence")
 	}
 	return cloneTPMPublic(public)
 }
 
 func (f *fakeBackend) ReadPublic(
 	ctx context.Context,
-	handle tpm.Handle,
-) (tpm.Public, error) {
+	handle anchor.Handle,
+) (anchor.Public, error) {
 	if err := ctx.Err(); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	object, exists := f.objects[handle]
 	if !exists {
-		return tpm.Public{}, tpm.ErrHandleNotFound
+		return anchor.Public{}, anchor.ErrHandleNotFound
 	}
 	return cloneTPMPublic(object.public)
 }
 
 func (f *fakeBackend) Sign(
 	ctx context.Context,
-	request tpm.SignRequest,
+	request anchor.SignRequest,
 ) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -166,14 +166,14 @@ func (f *fakeBackend) Sign(
 	object, exists := f.objects[request.Object.Handle]
 	if !exists {
 		f.mu.Unlock()
-		return nil, tpm.ErrHandleNotFound
+		return nil, anchor.ErrHandleNotFound
 	}
 	if subtle.ConstantTimeCompare(request.Object.Name, object.public.Name) != 1 ||
 		request.Object.Template != object.public.Template {
 		f.mu.Unlock()
 		return nil, ErrMetadataMismatch
 	}
-	if request.Purpose != tpm.SignPurposeCertificate ||
+	if request.Purpose != anchor.SignPurposeCertificate ||
 		request.Scheme != object.public.Template.SigningScheme {
 		f.mu.Unlock()
 		return nil, errors.New("fake TPM rejected signing purpose or scheme")
@@ -193,7 +193,7 @@ func (f *fakeBackend) Sign(
 
 func (f *fakeBackend) EvictPersistent(
 	ctx context.Context,
-	reference tpm.ObjectReference,
+	reference anchor.ObjectReference,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -202,7 +202,7 @@ func (f *fakeBackend) EvictPersistent(
 	defer f.mu.Unlock()
 	object, exists := f.objects[reference.Handle]
 	if !exists {
-		return tpm.ErrHandleNotFound
+		return anchor.ErrHandleNotFound
 	}
 	if subtle.ConstantTimeCompare(reference.Name, object.public.Name) != 1 ||
 		reference.Template != object.public.Template {
@@ -221,7 +221,7 @@ func (f *fakeBackend) Close() error {
 	return nil
 }
 
-func (f *fakeBackend) replaceName(handle tpm.Handle, name []byte) {
+func (f *fakeBackend) replaceName(handle anchor.Handle, name []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	object := f.objects[handle]
@@ -229,30 +229,30 @@ func (f *fakeBackend) replaceName(handle tpm.Handle, name []byte) {
 	f.objects[handle] = object
 }
 
-func (f *fakeBackend) deleteHandle(handle tpm.Handle) {
+func (f *fakeBackend) deleteHandle(handle anchor.Handle) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.objects, handle)
 }
 
-func (f *fakeBackend) hasHandle(handle tpm.Handle) bool {
+func (f *fakeBackend) hasHandle(handle anchor.Handle) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_, exists := f.objects[handle]
 	return exists
 }
 
-func generateFakeSigner(algorithm tpm.Algorithm) (crypto.Signer, error) {
+func generateFakeSigner(algorithm anchor.Algorithm) (crypto.Signer, error) {
 	switch algorithm {
-	case tpm.AlgorithmRSA4096:
+	case anchor.AlgorithmRSA4096:
 		return rsa.GenerateKey(rand.Reader, 4096)
-	case tpm.AlgorithmECDSAP256:
+	case anchor.AlgorithmECDSAP256:
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	case tpm.AlgorithmEd25519:
+	case anchor.AlgorithmEd25519:
 		_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 		return privateKey, err
 	default:
-		return nil, &tpm.UnsupportedCapabilityError{
+		return nil, &anchor.UnsupportedCapabilityError{
 			Algorithm: algorithm,
 			Reason:    "fake signer algorithm is unknown",
 		}
@@ -260,55 +260,55 @@ func generateFakeSigner(algorithm tpm.Algorithm) (crypto.Signer, error) {
 }
 
 func fakePublic(
-	handle tpm.Handle,
-	template tpm.Template,
+	handle anchor.Handle,
+	template anchor.Template,
 	key crypto.PublicKey,
-) (tpm.Public, error) {
-	public := tpm.Public{
+) (anchor.Public, error) {
+	public := anchor.Public{
 		Handle:    handle,
 		Template:  template,
 		PublicKey: key,
 		Name:      []byte{1},
 	}
-	der, err := tpm.CanonicalPublicKey(public)
+	der, err := anchor.CanonicalPublicKey(public)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	templateJSON, err := json.Marshal(template)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	hash := sha256.New()
 	if _, err := hash.Write(templateJSON); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	if _, err := hash.Write(der); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	var handleBytes [4]byte
 	binary.BigEndian.PutUint32(handleBytes[:], uint32(handle))
 	if _, err := hash.Write(handleBytes[:]); err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	public.Name = hash.Sum(nil)
 	return public, nil
 }
 
-func cloneTPMPublic(public tpm.Public) (tpm.Public, error) {
+func cloneTPMPublic(public anchor.Public) (anchor.Public, error) {
 	cloned := public
 	cloned.Name = slices.Clone(public.Name)
 	der, err := x509.MarshalPKIXPublicKey(public.PublicKey)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	cloned.PublicKey, err = x509.ParsePKIXPublicKey(der)
 	if err != nil {
-		return tpm.Public{}, err
+		return anchor.Public{}, err
 	}
 	return cloned, nil
 }
 
-func cloneSignRequest(request tpm.SignRequest) tpm.SignRequest {
+func cloneSignRequest(request anchor.SignRequest) anchor.SignRequest {
 	request.Object.Name = slices.Clone(request.Object.Name)
 	request.Payload = slices.Clone(request.Payload)
 	return request
@@ -408,8 +408,8 @@ func (c *fakeClock) Set(now time.Time) {
 
 func caPolicy(
 	role Role,
-	algorithm tpm.Algorithm,
-	handles ...tpm.Handle,
+	algorithm anchor.Algorithm,
+	handles ...anchor.Handle,
 ) RolePolicy {
 	return RolePolicy{
 		Role:             role,
@@ -421,8 +421,8 @@ func caPolicy(
 }
 
 func identityPolicy(
-	algorithm tpm.Algorithm,
-	handles ...tpm.Handle,
+	algorithm anchor.Algorithm,
+	handles ...anchor.Handle,
 ) RolePolicy {
 	return RolePolicy{
 		Role:      RoleDeviceIPNSIdentity,
@@ -464,7 +464,7 @@ type testingT interface {
 }
 
 var (
-	_ tpm.Backend = (*fakeBackend)(nil)
+	_ anchor.Backend = (*fakeBackend)(nil)
 	_ Store       = (*memoryStore)(nil)
 	_ Clock       = (*fakeClock)(nil)
 )

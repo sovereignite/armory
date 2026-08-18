@@ -2,7 +2,7 @@
 //
 // Copyright (C) 2026 Sovereignite contributors
 
-package keymanager
+package armory
 
 import (
 	"context"
@@ -24,13 +24,13 @@ func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {
 	testCases := []struct {
 		name      string
 		role      Role
-		algorithm tpm.Algorithm
+		algorithm anchor.Algorithm
 		assertKey func(*testing.T, any)
 	}{
 		{
 			name:      "RSA-4096",
 			role:      "rsa-ca",
-			algorithm: tpm.AlgorithmRSA4096,
+			algorithm: anchor.AlgorithmRSA4096,
 			assertKey: func(t *testing.T, key any) {
 				t.Helper()
 				publicKey, ok := key.(*rsa.PublicKey)
@@ -42,7 +42,7 @@ func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {
 		{
 			name:      "ECDSA-P256",
 			role:      "ecdsa-ca",
-			algorithm: tpm.AlgorithmECDSAP256,
+			algorithm: anchor.AlgorithmECDSAP256,
 			assertKey: func(t *testing.T, key any) {
 				t.Helper()
 				publicKey, ok := key.(*ecdsa.PublicKey)
@@ -54,7 +54,7 @@ func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {
 		{
 			name:      "Ed25519",
 			role:      "ed25519-ca",
-			algorithm: tpm.AlgorithmEd25519,
+			algorithm: anchor.AlgorithmEd25519,
 			assertKey: func(t *testing.T, key any) {
 				t.Helper()
 				publicKey, ok := key.(ed25519.PublicKey)
@@ -79,7 +79,7 @@ func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {
 				0,
 				time.UTC,
 			)}
-			firstHandle := tpm.PersistentHandleFirst + tpm.Handle(index*2+1)
+			firstHandle := anchor.PersistentHandleFirst + anchor.Handle(index*2+1)
 			policy := caPolicy(
 				testCase.role,
 				testCase.algorithm,
@@ -116,14 +116,14 @@ func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {
 
 func TestUnsupportedCapabilityHasNoFallback(t *testing.T) {
 	backend := newFakeBackend()
-	backend.supported[tpm.AlgorithmEd25519] = false
+	backend.supported[anchor.AlgorithmEd25519] = false
 	store := newMemoryStore()
 	clock := &fakeClock{now: time.Now().UTC()}
 	policy := caPolicy(
 		"unsupported-ca",
-		tpm.AlgorithmEd25519,
-		tpm.PersistentHandleFirst+10,
-		tpm.PersistentHandleFirst+11,
+		anchor.AlgorithmEd25519,
+		anchor.PersistentHandleFirst+10,
+		anchor.PersistentHandleFirst+11,
 	)
 	manager, err := NewManager(backend, store, []RolePolicy{policy}, nil, clock)
 	if err != nil {
@@ -132,7 +132,7 @@ func TestUnsupportedCapabilityHasNoFallback(t *testing.T) {
 	if _, err := manager.EnsureRole(
 		context.Background(),
 		policy.Role,
-	); !errors.Is(err, tpm.ErrUnsupportedCapability) {
+	); !errors.Is(err, anchor.ErrUnsupportedCapability) {
 		t.Fatalf("EnsureRole error = %v, want unsupported capability", err)
 	}
 	if backend.createCalls != 0 {
@@ -148,13 +148,13 @@ func TestUnsupportedCapabilityHasNoFallback(t *testing.T) {
 
 func TestInitializeIsIdempotentAndStopsOnUnsupportedRole(t *testing.T) {
 	now := time.Now().UTC()
-	identityHandle := tpm.PersistentHandleFirst + 12
-	caHandle := tpm.PersistentHandleFirst + 14
+	identityHandle := anchor.PersistentHandleFirst + 12
+	caHandle := anchor.PersistentHandleFirst + 14
 	policies := []RolePolicy{
-		identityPolicy(tpm.AlgorithmEd25519, identityHandle),
+		identityPolicy(anchor.AlgorithmEd25519, identityHandle),
 		caPolicy(
 			RoleDeviceRootCA,
-			tpm.AlgorithmECDSAP256,
+			anchor.AlgorithmECDSAP256,
 			caHandle,
 			caHandle+1,
 		),
@@ -190,7 +190,7 @@ func TestInitializeIsIdempotentAndStopsOnUnsupportedRole(t *testing.T) {
 
 	t.Run("unsupported subordinate", func(t *testing.T) {
 		backend := newFakeBackend()
-		backend.supported[tpm.AlgorithmECDSAP256] = false
+		backend.supported[anchor.AlgorithmECDSAP256] = false
 		store := newMemoryStore()
 		manager, err := NewManager(
 			backend,
@@ -203,7 +203,7 @@ func TestInitializeIsIdempotentAndStopsOnUnsupportedRole(t *testing.T) {
 			t.Fatal(err)
 		}
 		results, err := manager.Initialize(context.Background())
-		if !errors.Is(err, tpm.ErrUnsupportedCapability) {
+		if !errors.Is(err, anchor.ErrUnsupportedCapability) {
 			t.Fatalf("Initialize error = %v, want unsupported capability", err)
 		}
 		if len(results) != 1 || results[0].Role != RoleDeviceIPNSIdentity {
@@ -221,9 +221,9 @@ func TestReopenVerifiesPublicMetadataWithoutRegeneration(t *testing.T) {
 	clock := &fakeClock{now: time.Now().UTC()}
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+20,
-		tpm.PersistentHandleFirst+21,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+20,
+		anchor.PersistentHandleFirst+21,
 	)
 	first, err := NewManager(backend, store, []RolePolicy{policy}, nil, clock)
 	if err != nil {
@@ -309,9 +309,9 @@ func TestReopenFailsClosedOnTamperingOrMissingHandle(t *testing.T) {
 			clock := &fakeClock{now: time.Now().UTC()}
 			policy := caPolicy(
 				RoleDeviceRootCA,
-				tpm.AlgorithmECDSAP256,
-				tpm.PersistentHandleFirst+30,
-				tpm.PersistentHandleFirst+31,
+				anchor.AlgorithmECDSAP256,
+				anchor.PersistentHandleFirst+30,
+				anchor.PersistentHandleFirst+31,
 			)
 			manager, err := NewManager(backend, store, []RolePolicy{policy}, nil, clock)
 			if err != nil {
@@ -340,13 +340,13 @@ func TestReopenFailsClosedOnTamperingOrMissingHandle(t *testing.T) {
 }
 
 func TestRolePoliciesRequireDisjointPersistentHandles(t *testing.T) {
-	shared := tpm.PersistentHandleFirst + 40
+	shared := anchor.PersistentHandleFirst + 40
 	_, err := NewManager(
 		newFakeBackend(),
 		newMemoryStore(),
 		[]RolePolicy{
-			caPolicy(RoleDeviceRootCA, tpm.AlgorithmECDSAP256, shared, shared+1),
-			caPolicy("other-ca", tpm.AlgorithmECDSAP256, shared, shared+2),
+			caPolicy(RoleDeviceRootCA, anchor.AlgorithmECDSAP256, shared, shared+1),
+			caPolicy("other-ca", anchor.AlgorithmECDSAP256, shared, shared+2),
 		},
 		nil,
 		&fakeClock{now: time.Now().UTC()},
@@ -358,8 +358,8 @@ func TestRolePoliciesRequireDisjointPersistentHandles(t *testing.T) {
 
 func TestOccupiedInitialHandleIsNeverAdoptedOrOverwritten(t *testing.T) {
 	backend := newFakeBackend()
-	handle := tpm.PersistentHandleFirst + 50
-	template, err := tpm.SigningTemplate(tpm.AlgorithmECDSAP256)
+	handle := anchor.PersistentHandleFirst + 50
+	template, err := anchor.SigningTemplate(anchor.AlgorithmECDSAP256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,13 +367,13 @@ func TestOccupiedInitialHandleIsNeverAdoptedOrOverwritten(t *testing.T) {
 		context.Background(),
 		handle,
 		template,
-		func(tpm.Public) error { return nil },
+		func(anchor.Public) error { return nil },
 	); err != nil {
 		t.Fatal(err)
 	}
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		handle+1,
 	)
@@ -390,7 +390,7 @@ func TestOccupiedInitialHandleIsNeverAdoptedOrOverwritten(t *testing.T) {
 	if _, err := manager.EnsureRole(
 		context.Background(),
 		RoleDeviceRootCA,
-	); !errors.Is(err, tpm.ErrHandleOccupied) {
+	); !errors.Is(err, anchor.ErrHandleOccupied) {
 		t.Fatalf("EnsureRole error = %v, want occupied handle", err)
 	}
 	if backend.createCalls != 1 {
@@ -402,10 +402,10 @@ func TestMetadataSaveFailureRollsBackNewPersistentObject(t *testing.T) {
 	backend := newFakeBackend()
 	store := newMemoryStore()
 	store.failSaveAt = 1
-	handle := tpm.PersistentHandleFirst + 60
+	handle := anchor.PersistentHandleFirst + 60
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		handle+1,
 	)
@@ -436,10 +436,10 @@ func TestVisibleMetadataReplacementFailureNeverEvictsReferencedObject(t *testing
 	// The first save records the creation intent. Inject uncertainty into the
 	// second save, where the already-persisted TPM object becomes active.
 	store.uncertainSaveAt = 2
-	handle := tpm.PersistentHandleFirst + 62
+	handle := anchor.PersistentHandleFirst + 62
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		handle+1,
 	)
@@ -481,13 +481,13 @@ func TestRotationSchedulerRotatesOnlyDueSubordinateRoles(t *testing.T) {
 	clock := &fakeClock{now: start}
 	backend := newFakeBackend()
 	store := newMemoryStore()
-	identityHandle := tpm.PersistentHandleFirst + 70
-	caHandle := tpm.PersistentHandleFirst + 80
+	identityHandle := anchor.PersistentHandleFirst + 70
+	caHandle := anchor.PersistentHandleFirst + 80
 	policies := []RolePolicy{
-		identityPolicy(tpm.AlgorithmEd25519, identityHandle),
+		identityPolicy(anchor.AlgorithmEd25519, identityHandle),
 		caPolicy(
 			RoleDeviceRootCA,
-			tpm.AlgorithmECDSAP256,
+			anchor.AlgorithmECDSAP256,
 			caHandle,
 			caHandle+1,
 			caHandle+2,
@@ -550,10 +550,10 @@ func TestRotationIntentSaveFailureKeepsOldActiveAndDoesNotPersistNew(t *testing.
 	clock := &fakeClock{now: start}
 	backend := newFakeBackend()
 	store := newMemoryStore()
-	firstHandle := tpm.PersistentHandleFirst + 90
+	firstHandle := anchor.PersistentHandleFirst + 90
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		firstHandle,
 		firstHandle+1,
 	)
@@ -587,10 +587,10 @@ func TestPendingCreationRecoversAfterActivationSaveFailure(t *testing.T) {
 	clock := &fakeClock{now: start}
 	backend := newFakeBackend()
 	store := newMemoryStore()
-	firstHandle := tpm.PersistentHandleFirst + 94
+	firstHandle := anchor.PersistentHandleFirst + 94
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		firstHandle,
 		firstHandle+1,
 		firstHandle+2,
@@ -648,10 +648,10 @@ func TestPendingCreationRecoversLostPersistenceResponse(t *testing.T) {
 	backend := newFakeBackend()
 	backend.createResponseLosses = 1
 	store := newMemoryStore()
-	handle := tpm.PersistentHandleFirst + 98
+	handle := anchor.PersistentHandleFirst + 98
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		handle+1,
 	)
@@ -697,10 +697,10 @@ func TestPendingCreationRecoversLostPersistenceResponse(t *testing.T) {
 func TestPendingCreationNeverAdoptsMismatchedOccupiedHandle(t *testing.T) {
 	backend := newFakeBackend()
 	store := newMemoryStore()
-	handle := tpm.PersistentHandleFirst + 102
+	handle := anchor.PersistentHandleFirst + 102
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		handle,
 		handle+1,
 	)
@@ -747,10 +747,10 @@ func TestIncompleteRetirementIsRecoveredOnReopen(t *testing.T) {
 	clock := &fakeClock{now: start}
 	backend := newFakeBackend()
 	store := newMemoryStore()
-	firstHandle := tpm.PersistentHandleFirst + 100
+	firstHandle := anchor.PersistentHandleFirst + 100
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
+		anchor.AlgorithmECDSAP256,
 		firstHandle,
 		firstHandle+1,
 		firstHandle+2,
@@ -798,9 +798,9 @@ func TestEnsureRoleRejectsRevisionOverflowBeforeTPMMutation(t *testing.T) {
 	store.snapshot.Revision = math.MaxUint64 - 1
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+110,
-		tpm.PersistentHandleFirst+111,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+110,
+		anchor.PersistentHandleFirst+111,
 	)
 	manager, err := NewManager(
 		backend,
@@ -828,9 +828,9 @@ func TestRotateRejectsGenerationOverflowBeforeTPMMutation(t *testing.T) {
 	store := newMemoryStore()
 	policy := caPolicy(
 		RoleDeviceRootCA,
-		tpm.AlgorithmECDSAP256,
-		tpm.PersistentHandleFirst+112,
-		tpm.PersistentHandleFirst+113,
+		anchor.AlgorithmECDSAP256,
+		anchor.PersistentHandleFirst+112,
+		anchor.PersistentHandleFirst+113,
 	)
 	manager, err := NewManager(
 		backend,
@@ -876,18 +876,18 @@ func TestManagersSerializePendingPersistenceAndRefreshEveryRead(t *testing.T) {
 	store := newMemoryStore()
 	roleA := Role("concurrent-ca-a")
 	roleB := Role("concurrent-ca-b")
-	handleA := tpm.PersistentHandleFirst + 300
-	handleB := tpm.PersistentHandleFirst + 302
+	handleA := anchor.PersistentHandleFirst + 300
+	handleB := anchor.PersistentHandleFirst + 302
 	policies := []RolePolicy{
 		caPolicy(
 			roleA,
-			tpm.AlgorithmECDSAP256,
+			anchor.AlgorithmECDSAP256,
 			handleA,
 			handleA+1,
 		),
 		caPolicy(
 			roleB,
-			tpm.AlgorithmECDSAP256,
+			anchor.AlgorithmECDSAP256,
 			handleB,
 			handleB+1,
 		),
@@ -1060,8 +1060,8 @@ func TestOpenRejectsEveryLifetimeIdentityReplacementState(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			backend := newFakeBackend()
 			store := newMemoryStore()
-			handle := tpm.PersistentHandleFirst + 320
-			policy := identityPolicy(tpm.AlgorithmEd25519, handle)
+			handle := anchor.PersistentHandleFirst + 320
+			policy := identityPolicy(anchor.AlgorithmEd25519, handle)
 			manager, err := NewManager(
 				backend,
 				store,
