@@ -16,8 +16,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/sovereignite/keymanager"
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/armory"
+	"github.com/sovereignite/anchor"
 )
 
 const (

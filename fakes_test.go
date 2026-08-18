@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 type fakeObject struct {

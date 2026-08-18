@@ -7,7 +7,7 @@ package keymanager
 import (
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 const operationalRotationInterval = 90 * 24 * time.Hour

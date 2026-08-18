@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 // Clock makes creation and rotation decisions deterministic in tests.

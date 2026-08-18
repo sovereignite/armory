@@ -14,7 +14,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 // MetadataVersion is the only public-metadata schema version understood by

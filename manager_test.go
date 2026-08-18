@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 func TestEnsureRoleSupportsAllRequestedAlgorithms(t *testing.T) {

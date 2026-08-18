@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 func TestParseModePreservesSystemdCLIContract(t *testing.T) {

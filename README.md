@@ -13,7 +13,7 @@ the manager as a long-running service (plus an `initialize` one-shot mode) with
 a `--tpm-device` and `--metadata-path` interface.
 
 The only non-stdlib dependency is the sibling
-[`github.com/sovereignite/tpm`](https://github.com/sovereignite/tpm) module,
+[`github.com/sovereignite/anchor`](https://github.com/sovereignite/anchor) module,
 resolved via a local `replace` directive until it is published.
 
 ## Build & test

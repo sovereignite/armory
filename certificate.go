@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 // CertificateRequest is a certificate-only operation. It does not accept a

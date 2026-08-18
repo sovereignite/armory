@@ -7,7 +7,7 @@ package keymanager
 import (
 	"testing"
 
-	"github.com/sovereignite/tpm"
+	"github.com/sovereignite/anchor"
 )
 
 func TestDefaultPoliciesCount(t *testing.T) {
