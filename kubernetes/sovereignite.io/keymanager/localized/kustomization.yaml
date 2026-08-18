@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - apps_v1_daemonset_keymanager.yaml
+  - v1_namespace_sovereignite-system.yaml
+  - v1_serviceaccount_keymanager.yaml

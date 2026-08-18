@@ -1,0 +1,8 @@
+builds:
+  - id: keymanager
+    dir: .
+    main: ./cmd/keymanager
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w

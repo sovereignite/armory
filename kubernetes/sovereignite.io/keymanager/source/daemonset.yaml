@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: keymanager
+  namespace: sovereignite-system
+  labels:
+    app.kubernetes.io/name: keymanager
+    app.kubernetes.io/part-of: sovereignite
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keymanager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keymanager
+        app.kubernetes.io/part-of: sovereignite
+    spec:
+      serviceAccountName: keymanager
+      hostPID: false
+      initContainers:
+        - name: wait-tpm
+          image: busybox:latest
+          command: ["sh", "-c", "test -e /dev/tpmrm0"]
+          securityContext:
+            privileged: false
+          volumeMounts:
+            - name: tpmrm
+              mountPath: /dev/tpmrm0
+              readOnly: true
+      containers:
+        - name: keymanager
+          image: ghcr.io/sovereignite/keymanager:v0.0.0
+          args:
+            - --tpm-device=/dev/tpmrm0
+            - --metadata-path=/var/lib/sovereignite/keymanager/metadata.json
+          securityContext:
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+            - name: tpmrm
+              mountPath: /dev/tpmrm0
+            - name: keymanager-state
+              mountPath: /var/lib/sovereignite/keymanager
+            - name: keymanager-runtime
+              mountPath: /run/sovereignite/keymanager
+      volumes:
+        - name: tpmrm
+          hostPath:
+            path: /dev/tpmrm0
+            type: CharDevice
+        - name: keymanager-state
+          hostPath:
+            path: /var/lib/sovereignite/keymanager
+            type: DirectoryOrCreate
+        - name: keymanager-runtime
+          emptyDir: {}

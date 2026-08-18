@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+[Unit]
+Description=Sovereignite TPM key management service
+Requires=sovereignite-tpm-firstboot.service
+After=sovereignite-tpm-firstboot.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+UMask=0077
+RuntimeDirectory=sovereignite/keymanager
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=no
+ExecStartPre=/usr/bin/test -c /dev/tpmrm0
+ExecStartPre=/usr/bin/test -x /usr/bin/sovereignite-keymanager
+ExecStart=/usr/bin/sovereignite-keymanager
+ExecStartPost=/opt/sovereignite/bin/sovereignite-wait-ready keymanager /run/sovereignite/keymanager/ready.json 60
+TimeoutStartSec=75s
+Restart=on-failure
+RestartSec=5s
+DevicePolicy=closed
+DeviceAllow=/dev/tpmrm0 rw
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/run/sovereignite/keymanager /var/lib/sovereignite/keymanager
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=sovereignite-pre-kubernetes.target
