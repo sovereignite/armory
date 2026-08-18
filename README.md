@@ -28,7 +28,7 @@ go test ./...
 - `kubernetes/sovereignite.io/keymanager/` — kustomize manifests (DaemonSet,
   namespace, service account).
 - `.ko.yaml` — ko build entry (`main: ./cmd/keymanager`, static, `CGO_ENABLED=0`).
-- `os/systemd/sovereignite-keymanager.service` — systemd unit.
+- `os/systemd/sovereignite-armory.service` — systemd unit.
 
 ## License
 
